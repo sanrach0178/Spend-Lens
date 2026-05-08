@@ -1,4 +1,4 @@
-import { ToolId, pricingData } from './pricing-data';
+/* eslint-disable @typescript-eslint/no-unused-vars */
 
 export type ToolEntry = {
   toolId: string;
