@@ -84,23 +84,81 @@ export default function AuditFormPage() {
     setMounted(true);
   }, []);
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const onSubmit = async (data: FormValues) => {
     setIsSubmitting(true);
     try {
-      // Create a mock API route or handle it directly if no backend exists yet
-      // For now we'll simulate the API call and redirect
-      // In a real scenario:
-      // const response = await fetch('/api/audit/run', { method: 'POST', body: JSON.stringify(data) });
-      // const result = await response.json();
-      // router.push(`/audit/${result.id}`);
+      // Basic heuristic calculation for demonstration
+      let totalMonthlySavings = 0;
+      const toolResults = [];
+
+      const enabledTools = Object.values(data.tools).filter(t => t.enabled);
       
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate delay
-      const mockId = Math.random().toString(36).substring(2, 9);
+      const hasCopilot = enabledTools.some(t => t.id === 'github_copilot');
+      const hasCursorOrWindsurf = enabledTools.some(t => t.id === 'cursor' || t.id === 'windsurf');
+
+      for (const tool of enabledTools) {
+        let recommendedPlan = tool.plan;
+        let savings = 0;
+        let reason = "";
+
+        if (tool.id === 'github_copilot' && hasCursorOrWindsurf) {
+          savings = tool.spend * tool.seats;
+          recommendedPlan = "None";
+          reason = "You are already using an AI IDE (Cursor/Windsurf), making Copilot redundant.";
+        } else if (tool.plan === 'pro' && data.teamSize > 5 && tool.seats > 5) {
+          recommendedPlan = "team";
+          reason = "Switching to a Team plan offers better admin controls and might be more cost-effective.";
+        }
+
+        totalMonthlySavings += savings;
+        toolResults.push({
+          toolId: tool.id,
+          currentPlan: tool.plan,
+          recommendedPlan,
+          monthlySavings: savings,
+          annualSavings: savings * 12,
+          alternatives: [],
+          reason
+        });
+      }
+
+      const calculatedResult = {
+        tools: toolResults,
+        totalMonthlySavings,
+        totalAnnualSavings: totalMonthlySavings * 12,
+        showCredex: totalMonthlySavings > 500,
+        summary: ""
+      };
+
+      const backendData = {
+        tools: enabledTools.map(t => ({
+          toolId: t.id,
+          plan: t.plan,
+          monthlySpend: t.spend * t.seats,
+          seats: t.seats
+        })),
+        teamSize: data.teamSize,
+        primaryUseCase: data.primaryUseCase,
+        calculatedResult
+      };
+
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api";
+      const response = await fetch(`${apiUrl}/audit/run`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(backendData)
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to generate audit");
+      }
+
+      const result = await response.json();
       clearPersistedState();
-      router.push(`/audit/${mockId}`); // Just redirecting to a non-existent page for now
+      router.push(`/audit/${result.auditId}`);
     } catch (error) {
       console.error(error);
+    } finally {
       setIsSubmitting(false);
     }
   };
