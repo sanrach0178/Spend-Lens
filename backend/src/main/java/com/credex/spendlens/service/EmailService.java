@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
@@ -29,6 +30,7 @@ public class EmailService {
         this.restTemplate = restTemplate;
     }
 
+    @Async
     public void sendAuditConfirmation(Lead lead, Audit audit) {
         try {
             String auditUrl = frontendUrl + "/audit/" + audit.getPublicId();
@@ -51,7 +53,7 @@ public class EmailService {
             headers.setBearerAuth(apiKey);
 
             Map<String, Object> requestBody = Map.of(
-                    "from", "SpendLens <noreply@spendlens.com>",
+                    "from", "SpendLens <onboarding@resend.dev>",
                     "to", lead.getEmail(),
                     "subject", "Your SpendLens Audit Results",
                     "html", htmlContent.toString()
@@ -59,7 +61,8 @@ public class EmailService {
 
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
 
-            restTemplate.postForObject("https://api.resend.com/emails", entity, String.class);
+            String response = restTemplate.postForObject("https://api.resend.com/emails", entity, String.class);
+            log.info("Resend API Response: {}", response);
             log.info("Successfully sent audit confirmation email to {}", lead.getEmail());
             
         } catch (Exception e) {

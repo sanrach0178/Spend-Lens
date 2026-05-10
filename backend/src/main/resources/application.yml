@@ -35,3 +35,9 @@ rate-limit:
   capacity: 10
   refill-tokens: 10
   refill-duration-minutes: 60
+
+logging:
+  level:
+    org.springframework.web: DEBUG
+    org.hibernate.SQL: DEBUG
+    com.credex.spendlens: DEBUG

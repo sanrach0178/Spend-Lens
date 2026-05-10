@@ -60,7 +60,6 @@ public class LeadService {
         sendConfirmationEmail(lead, audit);
     }
 
-    @Async
     public void sendConfirmationEmail(Lead lead, Audit audit) {
         emailService.sendAuditConfirmation(lead, audit);
         lead.setEmailSent(true);

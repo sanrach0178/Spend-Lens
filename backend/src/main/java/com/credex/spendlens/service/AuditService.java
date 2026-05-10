@@ -46,13 +46,17 @@ public class AuditService {
         }
 
         try {
+            System.out.println("DEBUG: Starting audit creation for " + ipHash);
             AuditResponse result = request.getCalculatedResult();
             if (result == null) {
+                System.err.println("DEBUG: Calculated result is null!");
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Calculated result is required");
             }
             
+            System.out.println("DEBUG: Generating AI summary...");
             String summary = geminiService.generateSummary(request, result);
             result.setSummary(summary);
+            System.out.println("DEBUG: AI summary generated: " + (summary != null ? "success" : "failed"));
             
             String publicId = generatePublicId();
             result.setAuditId(publicId);
@@ -68,7 +72,9 @@ public class AuditService {
                     .ipHash(ipHash)
                     .build();
 
+            System.out.println("DEBUG: Saving audit to repository...");
             auditRepository.save(audit);
+            System.out.println("DEBUG: Audit saved with ID: " + publicId);
             
             return result;
         } catch (JsonProcessingException e) {

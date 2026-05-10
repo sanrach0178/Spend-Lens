@@ -23,6 +23,9 @@ public class GeminiService {
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
 
+    private static final String GEMINI_API_URL =
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
+
     public GeminiService(@Value("${gemini.api.key}") String apiKey, RestTemplate restTemplate, ObjectMapper objectMapper) {
         this.apiKey = apiKey;
         this.restTemplate = restTemplate;
@@ -32,7 +35,7 @@ public class GeminiService {
     public String generateSummary(AuditRequest request, AuditResponse result) {
         try {
             String auditJson = objectMapper.writeValueAsString(result);
-            
+
             String prompt = String.format(
                     "You are a concise financial advisor for startups. Given this AI tool spend audit, write a 100-word personalized summary. Be specific about the dollar amounts. Lead with the biggest win. End with one actionable next step. Tone: direct, not salesy. Data: %s",
                     auditJson
@@ -40,35 +43,46 @@ public class GeminiService {
 
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
-            headers.set("x-api-key", apiKey);
-            headers.set("anthropic-version", "2023-06-01");
 
+            // Gemini API request body format
             Map<String, Object> requestBody = Map.of(
-                    "model", "claude-3-haiku-20240307",
-                    "max_tokens", 300,
-                    "messages", List.of(
-                            Map.of("role", "user", "content", prompt)
+                    "contents", List.of(
+                            Map.of("parts", List.of(
+                                    Map.of("text", prompt)
+                            ))
+                    ),
+                    "generationConfig", Map.of(
+                            "maxOutputTokens", 300,
+                            "temperature", 0.7
                     )
             );
 
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
-            
-            Map<String, Object> response = restTemplate.postForObject(
-                    "https://api.anthropic.com/v1/messages",
-                    entity,
-                    Map.class
-            );
 
-            if (response != null && response.containsKey("content")) {
-                List<Map<String, Object>> contentList = (List<Map<String, Object>>) response.get("content");
-                if (!contentList.isEmpty()) {
-                    return (String) contentList.get(0).get("text");
+            String url = GEMINI_API_URL + "?key=" + apiKey;
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> response = restTemplate.postForObject(url, entity, Map.class);
+
+            if (response != null && response.containsKey("candidates")) {
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> candidates = (List<Map<String, Object>>) response.get("candidates");
+                if (!candidates.isEmpty()) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> content = (Map<String, Object>) candidates.get(0).get("content");
+                    if (content != null) {
+                        @SuppressWarnings("unchecked")
+                        List<Map<String, Object>> parts = (List<Map<String, Object>>) content.get("parts");
+                        if (parts != null && !parts.isEmpty()) {
+                            return (String) parts.get(0).get("text");
+                        }
+                    }
                 }
             }
-            
+
             return getFallbackSummary(result);
         } catch (Exception e) {
-            log.error("Failed to generate summary from AI. Using fallback.", e);
+            log.error("Failed to generate summary from Gemini API. Using fallback.", e);
             return getFallbackSummary(result);
         }
     }
@@ -76,7 +90,7 @@ public class GeminiService {
     private String getFallbackSummary(AuditResponse result) {
         int numTools = result.getTools() != null ? result.getTools().size() : 0;
         BigDecimal totalSavings = result.getTotalMonthlySavings() != null ? result.getTotalMonthlySavings() : BigDecimal.ZERO;
-        
+
         String topTool = "your stack";
         if (result.getTools() != null && !result.getTools().isEmpty()) {
             topTool = result.getTools().get(0).getToolId();

@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/audit")
-@CrossOrigin(origins = "${frontend.url}")
+@CrossOrigin(origins = "*")
 public class AuditController {
 
     private final AuditService auditService;
@@ -21,8 +21,17 @@ public class AuditController {
     @PostMapping("/run")
     public ResponseEntity<AuditResponse> createAudit(@RequestBody AuditRequest request, HttpServletRequest httpRequest) {
         String ipAddress = getClientIpAddress(httpRequest);
-        AuditResponse response = auditService.createAudit(request, ipAddress);
-        return ResponseEntity.ok(response);
+        System.out.println("DEBUG: Received audit request from IP: " + ipAddress);
+        System.out.println("DEBUG: Request data: " + request);
+        try {
+            AuditResponse response = auditService.createAudit(request, ipAddress);
+            System.out.println("DEBUG: Audit created successfully: " + response.getAuditId());
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            System.err.println("DEBUG: Error creating audit: " + e.getMessage());
+            e.printStackTrace();
+            throw e;
+        }
     }
 
     @GetMapping("/{publicId}")

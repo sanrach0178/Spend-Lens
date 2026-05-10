@@ -93,6 +93,7 @@ export default function AuditFormPage() {
 
       const enabledTools = Object.values(data.tools).filter(t => t.enabled);
       
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const hasCopilot = enabledTools.some(t => t.id === 'github_copilot');
       const hasCursorOrWindsurf = enabledTools.some(t => t.id === 'cursor' || t.id === 'windsurf');
 
@@ -150,14 +151,18 @@ export default function AuditFormPage() {
       });
 
       if (!response.ok) {
-        throw new Error("Failed to generate audit");
+        const errorText = await response.text();
+        console.error("Backend error:", errorText);
+        throw new Error(`Failed to generate audit: ${response.status} ${errorText}`);
       }
 
       const result = await response.json();
+      console.log("Audit result received:", result);
       clearPersistedState();
       router.push(`/audit/${result.auditId}`);
     } catch (error) {
-      console.error(error);
+      console.error("Submission error:", error);
+      alert(error instanceof Error ? error.message : "An unexpected error occurred while running the audit.");
     } finally {
       setIsSubmitting(false);
     }
@@ -176,7 +181,16 @@ export default function AuditFormPage() {
           <p className="text-muted-foreground">Select the tools your team uses and enter your current spend.</p>
         </div>
 
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+        <form 
+          onSubmit={form.handleSubmit(
+            onSubmit, 
+            (errors) => {
+              console.log("Validation errors:", errors);
+              alert("Please check the form for errors. Some tools might have invalid spend or seat values.");
+            }
+          )} 
+          className="space-y-8"
+        >
           {/* Global Fields */}
           <Card className="border-primary/20 shadow-sm">
             <CardHeader>
